@@ -1,0 +1,84 @@
+# Clan Tracker - see README.md.
+#
+# Before starting:
+# 1. Put "server" and "public" from the release zip in one folder and set its path
+#    under volumes below (replace /path/to/clan-tracker).
+# 2. Replace every CHANGE_ME. The server refuses to start while one is left.
+#    Use the same database password in both places.
+# 3. Optional: change the port on the left of "8080:8080" if 8080 is taken.
+
+services:
+  clan-tracker:
+    image: debian:bookworm-slim
+    restart: unless-stopped
+    working_dir: /app
+    # Runs the "server" file from the folder (copied first so it can be made executable).
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        cp /app/server /tmp/clan-tracker.new && chmod +x /tmp/clan-tracker.new
+        && mv -f /tmp/clan-tracker.new /tmp/clan-tracker && exec /tmp/clan-tracker
+    environment:
+      # Your in-game clan name, shown on the website.
+      CLAN_NAME: "My Clan"
+      # Password for the admin tools on the website's Settings page.
+      ADMIN_PASSWORD: "CHANGE_ME_ADMIN_PASSWORD"
+      # Visitors answer this question before they see the clan pages; each browser
+      # is remembered for a year. Used on the first start, then change it on the
+      # Settings page. Leave ACCESS_ANSWER empty ("") to start with the question off.
+      ACCESS_QUESTION: "What's the clan password?"
+      ACCESS_ANSWER: "CHANGE_ME_ACCESS_ANSWER"
+      # What players paste into the plugin: your public IP address or host name and
+      # the port players reach this server on, like http://203.0.113.10:8080.
+      # Can be left empty and set on the Settings page instead.
+      PLUGIN_URL: ""
+      # Players who haven't synced for this many days are removed.
+      INACTIVE_DAYS: "90"
+      # Minutes a player counts as online after their plugin last sent something
+      # (can be changed on the Settings page).
+      ONLINE_MINUTES: "5"
+      # Leave empty: players can then hide things with NoBank / NoLocation / NoClog
+      # in their Group Token. If set, every player must use exactly this Group Token.
+      GROUP_TOKEN: ""
+      # Whether players' banks show in the Clan Bank unless they opt out.
+      GIM_PLUGIN_SHARE_BANK: "true"
+      # Optional extra password that also opens the clan pages. Usually left empty.
+      VIEW_PASSWORD: ""
+      # Website files (inside the folder above).
+      STATIC_DIR: /app/public
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      PG_USER: clantracker
+      PG_DB: clantracker
+      # Must be the same as POSTGRES_PASSWORD below.
+      PG_PASSWORD: "CHANGE_ME_DB_PASSWORD"
+    volumes:
+      # The folder holding "server" and "public".
+      - /path/to/clan-tracker:/app
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: clantracker
+      POSTGRES_DB: clantracker
+      # Must be the same as PG_PASSWORD above.
+      POSTGRES_PASSWORD: "CHANGE_ME_DB_PASSWORD"
+    volumes:
+      # A Docker volume rather than a folder: Postgres won't start in a folder with
+      # network-share (SMB) permissions. It survives restarts and updates.
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clantracker -d clantracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pgdata: {}
